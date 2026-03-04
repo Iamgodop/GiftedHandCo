@@ -1,0 +1,71 @@
+create or replace function place_order(
+  p_order_id text,
+  p_name text,
+  p_phone text,
+  p_items jsonb,
+  p_total numeric,
+  p_discount numeric,
+  p_advance numeric,
+  p_screenshot_url text
+)
+returns void
+language plpgsql
+as $$
+declare
+  item jsonb;
+  pid text;
+  qty int;
+  current_stock int;
+begin
+
+  for item in select * from jsonb_array_elements(p_items)
+  loop
+
+    pid := item->>'id';
+    qty := coalesce((item->>'qty')::int,1);
+
+    -- fetch stock first
+    select stock into current_stock
+    from products
+    where id = pid;
+
+    if current_stock is null then
+      raise exception 'Product % not found', pid;
+    end if;
+
+    if current_stock < qty then
+      raise exception 'Out of stock for product %', pid;
+    end if;
+
+    -- update stock
+    update products
+    set stock = stock - qty
+    where id = pid;
+
+  end loop;
+
+  -- insert order
+  insert into orders(
+    order_id,
+    name,
+    phone,
+    items,
+    total,
+    discount,
+    advance,
+    screenshot_url
+  )
+  values(
+    p_order_id,
+    p_name,
+    p_phone,
+    p_items,
+    p_total,
+    p_discount,
+    p_advance,
+    p_screenshot_url
+  );
+
+end;
+$$;
+grant execute on function place_order to anon;

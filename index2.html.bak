@@ -19,12 +19,13 @@ min-height:100vh;
 
 header{
 text-align:center;
-padding:22px;
+padding:24px;
 font-size:28px;
 font-weight:600;
 color:white;
 background:rgba(255,255,255,0.15);
 backdrop-filter:blur(10px);
+box-shadow:0 4px 10px rgba(0,0,0,0.1);
 }
 
 .grid{
@@ -40,11 +41,12 @@ border-radius:18px;
 padding:15px;
 text-align:center;
 box-shadow:0 10px 25px rgba(0,0,0,0.1);
-transition:.25s;
+transition:all .25s ease;
 }
 
 .card:hover{
-transform:translateY(-5px);
+transform:translateY(-6px);
+box-shadow:0 14px 30px rgba(0,0,0,0.18);
 }
 
 .card img{
@@ -63,10 +65,23 @@ border-radius:8px;
 cursor:pointer;
 margin-top:8px;
 font-size:14px;
+transition:0.2s;
 }
 
 button:hover{
 background:#b88db8;
+transform:scale(1.05);
+}
+
+button:disabled{
+opacity:.6;
+cursor:not-allowed;
+transform:none;
+}
+
+.out{
+color:#e53935;
+font-weight:600;
 }
 
 .cart-btn{
@@ -118,40 +133,31 @@ padding:22px;
 border-radius:16px;
 max-height:90vh;
 overflow:auto;
+animation:pop .25s ease;
 }
 
-.cart-item{
-display:flex;
-justify-content:space-between;
-align-items:center;
-padding:10px;
-border-bottom:1px solid #eee;
-}
-
-.qty-btn{
-padding:4px 8px;
-font-size:12px;
-margin-left:4px;
-}
-
-label{
-font-size:13px;
-font-weight:500;
-display:block;
-margin-top:8px;
+@keyframes pop{
+from{transform:scale(.9);opacity:.6}
+to{transform:scale(1);opacity:1}
 }
 
 input{
 width:100%;
 padding:10px;
-margin-bottom:6px;
+margin-bottom:10px;
 border-radius:8px;
 border:1px solid #ddd;
 }
 
-.out{
-color:#e53935;
-font-weight:600;
+.cart-item{
+display:flex;
+justify-content:space-between;
+margin-bottom:8px;
+}
+
+.qty-btn{
+padding:4px 8px;
+font-size:12px;
 }
 
 #toast{
@@ -166,12 +172,17 @@ border-radius:10px;
 font-size:14px;
 box-shadow:0 6px 18px rgba(0,0,0,0.2);
 opacity:0;
-transition:.35s;
+transition:all .35s ease;
 }
 
 #toast.show{
 opacity:1;
 transform:translateX(-50%) translateY(0);
+}
+
+.loading{
+opacity:.6;
+pointer-events:none;
 }
 
 </style>
@@ -192,30 +203,19 @@ transform:translateX(-50%) translateY(0);
 <div class="modal" id="cartModal">
 <div class="modal-content">
 
-<h2>Your Cart 🛒</h2>
+<h3>Your Cart</h3>
 
 <div id="cartItems"></div>
+
 <div id="totals"></div>
 
 <hr>
 
-<label>Name</label> <input placeholder="Enter your name" id="name">
+<input placeholder="Name" id="name">
+<input placeholder="Phone" id="phone">
+<input type="file" id="screenshot" accept="image/*">
 
-<label>Phone</label> <input placeholder="Enter phone number" id="phone">
-
-<label>Advance Paid (₹)</label> <input type="number" placeholder="Enter advance amount" id="paid">
-
-<label>Upload Payment Screenshot</label> <input type="file" id="screenshot" accept="image/*">
-
-<button onclick="placeOrder()">Place Order</button>
-
-<button onclick="clearCart()" style="background:#e53935;margin-top:8px">
-Clear Cart
-</button>
-
-<button onclick="closeCart()" style="background:gray;margin-top:8px">
-Close
-</button>
+<button id="orderBtn" onclick="placeOrder()">Place Order</button> <button onclick="clearCart()" style="background:#e53935;margin-top:5px">Clear Cart</button> <button onclick="closeCart()" style="background:gray;margin-top:5px">Close</button>
 
 </div>
 </div>
@@ -242,8 +242,7 @@ setTimeout(()=>toast.classList.remove("show"),2000);
 }
 
 function updateCartCount(){
-document.getElementById("cartCount").innerText=
-cart.reduce((s,i)=>s+i.qty,0);
+document.getElementById("cartCount").innerText=cart.reduce((s,i)=>s+i.qty,0);
 }
 
 async function loadProducts(){
@@ -254,7 +253,8 @@ const {data,error}=await supabaseClient
 .eq("active",true);
 
 if(error){
-showToast("Server waking up, refresh soon");
+console.error(error);
+showToast("Server waking up, refresh in few seconds.");
 return;
 }
 
@@ -264,6 +264,7 @@ const container=document.getElementById("products");
 container.innerHTML="";
 
 data.forEach(p=>{
+
 container.innerHTML+=`
 <div class="card">
 <img src="${p.image}">
@@ -274,11 +275,13 @@ container.innerHTML+=`
 ${
 p.stock>0
 ? `<button onclick="addToCart('${p.id}')">Add to Cart</button>`
-: `<p class="out">Out Of Stock</p>`
+: `<p class="out">Out Of Stock</p>
+<button onclick="notify('${p.id}')">Order when in stock</button>`
 }
 
 </div>
 `;
+
 });
 
 }
@@ -290,45 +293,15 @@ let item=cart.find(i=>i.id===id);
 if(item){
 item.qty+=1;
 }else{
-const p=productsData.find(x=>x.id===id);
-cart.push({
-id:String(p.id),
-name:p.name,
-price:p.price,
-qty:1
-});
+const product=productsData.find(p=>p.id===id);
+cart.push({...product,qty:1});
 }
 
 localStorage.setItem("cart",JSON.stringify(cart));
+
 updateCartCount();
-showToast("Added to cart");
 
-}
-
-function changeQty(id,delta){
-
-let item=cart.find(i=>i.id===id);
-if(!item) return;
-
-item.qty+=delta;
-
-if(item.qty<=0){
-removeItem(id);
-return;
-}
-
-localStorage.setItem("cart",JSON.stringify(cart));
-updateCartCount();
-renderCart();
-
-}
-
-function removeItem(id){
-
-cart=cart.filter(i=>i.id!==id);
-localStorage.setItem("cart",JSON.stringify(cart));
-updateCartCount();
-renderCart();
+showToast("Added to cart 🛒");
 
 }
 
@@ -346,6 +319,25 @@ cart=[];
 localStorage.removeItem("cart");
 updateCartCount();
 renderCart();
+showToast("Cart cleared");
+}
+
+function changeQty(id,delta){
+
+let item=cart.find(i=>i.id===id);
+
+if(!item) return;
+
+item.qty+=delta;
+
+if(item.qty<=0){
+cart=cart.filter(i=>i.id!==id);
+}
+
+localStorage.setItem("cart",JSON.stringify(cart));
+updateCartCount();
+renderCart();
+
 }
 
 function renderCart(){
@@ -361,15 +353,11 @@ total+=item.price*item.qty;
 container.innerHTML+=`
 <div class="cart-item">
 
-<div>
-<b>${item.name}</b><br>
-₹${item.price} × ${item.qty}
-</div>
+<span>${item.name} (x${item.qty})</span>
 
 <div>
 <button class="qty-btn" onclick="changeQty('${item.id}',-1)">-</button>
 <button class="qty-btn" onclick="changeQty('${item.id}',1)">+</button>
-<button class="qty-btn" onclick="removeItem('${item.id}')">🗑</button>
 </div>
 
 </div>
@@ -385,7 +373,7 @@ document.getElementById("totals").innerHTML=`
 <p>Total: ₹${total}</p>
 <p>Discount: -₹${discount.toFixed(2)}</p>
 <p><b>Final: ₹${finalAmount.toFixed(2)}</b></p>
-<p><b>Minimum Advance Required: ₹${advance}</b></p>
+<p>Advance (20%): ₹${advance.toFixed(2)}</p>
 <hr>
 <p>UPI: 9390683808@ibl</p>
 `;
@@ -394,9 +382,10 @@ document.getElementById("totals").innerHTML=`
 
 async function placeOrder(){
 
+const btn=document.getElementById("orderBtn");
+
 const name=document.getElementById("name").value.trim();
 const phone=document.getElementById("phone").value.trim();
-const paid=parseInt(document.getElementById("paid").value);
 const file=document.getElementById("screenshot").files[0];
 
 if(!name||!phone||!file||cart.length===0){
@@ -404,24 +393,15 @@ showToast("Fill all details");
 return;
 }
 
-let total=cart.reduce((s,i)=>s+i.price*i.qty,0);
-let discount=total*0.05;
-let finalAmount=total-discount;
-let advance=Math.ceil(finalAmount*0.2);
-
-if(paid<advance){
-showToast("Minimum advance ₹"+advance);
+if(phone.length<10){
+showToast("Enter valid phone number");
 return;
 }
 
-/* IMPORTANT FIX: send only id + qty */
+btn.disabled=true;
+btn.innerText="Placing order...";
 
-const orderItems=cart.map(i=>({
-id:String(i.id),
-qty:Number(i.qty||1)
-}));
-
-console.log("Items sent to DB:",orderItems);
+try{
 
 const cleanName=file.name
 .replace(/\s+/g,"_")
@@ -438,11 +418,16 @@ supabaseClient.storage
 .from("screenshots")
 .getPublicUrl(fileName);
 
+let total=cart.reduce((s,i)=>s+i.price*i.qty,0);
+let discount=total*0.05;
+let finalAmount=total-discount;
+let advance=finalAmount*0.2;
+
 const {error}=await supabaseClient.rpc("place_order",{
 p_order_id:"GH"+Date.now(),
 p_name:name,
 p_phone:phone,
-p_items:orderItems,
+p_items:cart,
 p_total:finalAmount,
 p_discount:discount,
 p_advance:advance,
@@ -450,24 +435,44 @@ p_screenshot_url:publicUrl
 });
 
 if(error){
-console.error("RPC ERROR:",error);
-showToast(error.message);
+console.error(error);
+showToast("Order failed. Try again.");
+btn.disabled=false;
+btn.innerText="Place Order";
 return;
 }
 
-showToast("Order placed 🎉");
+showToast("Order placed successfully 🎉");
 
 cart=[];
 localStorage.removeItem("cart");
 updateCartCount();
-
-document.getElementById("name").value="";
-document.getElementById("phone").value="";
-document.getElementById("paid").value="";
-document.getElementById("screenshot").value="";
-
 closeCart();
-loadProducts();
+
+}catch(err){
+
+console.error(err);
+showToast("Something went wrong");
+
+}
+
+btn.disabled=false;
+btn.innerText="Place Order";
+
+}
+
+async function notify(productId){
+
+const name=prompt("Enter your name");
+const phone=prompt("Enter phone number");
+
+if(!name||!phone) return;
+
+await supabaseClient
+.from("notify_requests")
+.insert([{product_id:productId,name,phone}]);
+
+showToast("We'll notify when restocked");
 
 }
 

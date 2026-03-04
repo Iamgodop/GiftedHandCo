@@ -457,7 +457,7 @@ container.innerHTML+=`
 });
 
 let discount=total*0.05;
-let finalAmount=total-discount;
+let finalAmount=Math.ceil(total-discount);
 let advance=Math.ceil(finalAmount*0.2);
 
 document.getElementById("totals").innerHTML=`

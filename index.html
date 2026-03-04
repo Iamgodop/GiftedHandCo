@@ -9,7 +9,50 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 
 <style>
+#loaderOverlay{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:rgba(0,0,0,0.45);
+display:flex;
+align-items:center;
+justify-content:center;
+z-index:99999;
+opacity:0;
+pointer-events:none;
+transition:opacity .25s ease;
+}
 
+#loaderOverlay.show{
+opacity:1;
+pointer-events:all;
+}
+
+.loaderBox{
+background:white;
+padding:30px 40px;
+border-radius:14px;
+text-align:center;
+box-shadow:0 12px 30px rgba(0,0,0,0.3);
+}
+
+.spinner{
+width:45px;
+height:45px;
+border:4px solid #eee;
+border-top:4px solid #c8a2c8;
+border-radius:50%;
+animation:spin 1s linear infinite;
+margin:auto;
+margin-bottom:12px;
+}
+
+@keyframes spin{
+0%{transform:rotate(0deg)}
+100%{transform:rotate(360deg)}
+}
 body{
 margin:0;
 font-family:'Poppins',sans-serif;
@@ -237,7 +280,13 @@ Close
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+function showLoader(){
+document.getElementById("loaderOverlay").classList.add("show");
+}
 
+function hideLoader(){
+document.getElementById("loaderOverlay").classList.remove("show");
+}
 const supabaseClient = supabase.createClient(
 "https://mzcfodvfhulmhffhbhpu.supabase.co",
 "sb_publishable_6a-rZ0ntq9tBzo4tCESuYw_ZCQwaH_G"
@@ -467,7 +516,7 @@ const {data:{publicUrl}}=
 supabaseClient.storage
 .from("screenshots")
 .getPublicUrl(fileName);
-
+showLoader();
 const {error}=await supabaseClient.rpc("place_order",{
 p_order_id:"GH"+Date.now(),
 p_name:name,
@@ -482,9 +531,11 @@ p_screenshot_url:publicUrl
 if(error){
 console.error("RPC ERROR:",error);
 // showToast(error.message);
+hideLoader();
 showToast("❌ Order failed. Please try again.","error");
 return;
 }
+hideLoader();
 showToast("🎉 Order placed successfully!", "success");
 // showToast("Order placed 🎉");
 
@@ -506,7 +557,12 @@ updateCartCount();
 loadProducts();
 
 </script>
-
+<div id="loaderOverlay">
+  <div class="loaderBox">
+    <div class="spinner"></div>
+    <p>Processing your order...</p>
+  </div>
+</div>
 </body>
 </html>
 

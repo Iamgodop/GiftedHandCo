@@ -153,25 +153,37 @@ border:1px solid #ddd;
 color:#e53935;
 font-weight:600;
 }
-
 #toast{
 position:fixed;
-bottom:30px;
+top:50%;
 left:50%;
-transform:translateX(-50%) translateY(100px);
-background:#2e7d32;
+transform:translate(-50%,-60%);
+min-width:280px;
+max-width:90%;
+padding:18px 24px;
+border-radius:14px;
 color:white;
-padding:12px 22px;
-border-radius:10px;
-font-size:14px;
-box-shadow:0 6px 18px rgba(0,0,0,0.2);
+font-size:18px;
+font-weight:600;
+text-align:center;
+box-shadow:0 10px 30px rgba(0,0,0,0.3);
 opacity:0;
-transition:.35s;
+pointer-events:none;
+transition:all .35s ease;
+z-index:9999;
 }
 
 #toast.show{
 opacity:1;
-transform:translateX(-50%) translateY(0);
+transform:translate(-50%,-50%);
+}
+
+.toast-success{
+background:#2e7d32;
+}
+
+.toast-error{
+background:#d32f2f;
 }
 
 </style>
@@ -234,13 +246,31 @@ const supabaseClient = supabase.createClient(
 let productsData=[];
 let cart=JSON.parse(localStorage.getItem("cart"))||[];
 
-function showToast(msg){
+`function showToast(msg){
 const toast=document.getElementById("toast");
 toast.textContent=msg;
 toast.classList.add("show");
 setTimeout(()=>toast.classList.remove("show"),2000);
+}`
+function showToast(message,type="success"){
+
+const toast=document.getElementById("toast");
+
+toast.innerText=message;
+
+toast.className="show";
+
+if(type==="success"){
+toast.classList.add("toast-success");
+}else{
+toast.classList.add("toast-error");
 }
 
+setTimeout(()=>{
+toast.className="";
+},3000);
+
+}
 function updateCartCount(){
 document.getElementById("cartCount").innerText=
 cart.reduce((s,i)=>s+i.qty,0);

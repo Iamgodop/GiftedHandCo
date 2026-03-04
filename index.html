@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>GiftedHandCo ✨</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+body { margin:0; font-family:'Poppins',sans-serif;
+background:linear-gradient(135deg,#f8c8dc,#c8a2c8); }
+
+header { text-align:center; padding:20px;
+font-size:26px; font-weight:600; color:white; }
+
+.grid { display:grid; grid-template-columns:
+repeat(auto-fit,minmax(160px,1fr));
+gap:20px; padding:20px; }
+
+.card { background:white; border-radius:16px;
+padding:15px; text-align:center;
+box-shadow:0 8px 20px rgba(0,0,0,0.1); }
+
+.card img { width:100%; height:150px;
+object-fit:cover; border-radius:12px; }
+
+button { background:#c8a2c8; border:none;
+padding:10px; color:white;
+border-radius:8px; cursor:pointer; margin-top:8px; }
+
+.out { color:red; font-weight:600; }
+
+.cart-btn { position:fixed; bottom:20px;
+right:20px; width:60px; height:60px;
+border-radius:50%; background:#d4af37;
+display:flex; align-items:center;
+justify-content:center; font-size:22px;
+color:white; cursor:pointer; }
+
+.modal { position:fixed; inset:0;
+background:rgba(0,0,0,0.5);
+display:none; align-items:center; justify-content:center; }
+
+.modal-content { background:white;
+width:90%; max-width:400px;
+padding:20px; border-radius:16px;
+max-height:90vh; overflow:auto; }
+</style>
+</head>
+
+<body>
+
+<header>GiftedHandCo ✨</header>
+<div class="grid" id="products"></div>
+
+<div class="cart-btn" onclick="openCart()">🛒</div>
+
+<div class="modal" id="cartModal">
+<div class="modal-content">
+<h3>Your Cart</h3>
+<div id="cartItems"></div>
+<div id="totals"></div>
+<hr>
+<input placeholder="Name" id="name" style="width:100%;margin-bottom:8px">
+<input placeholder="Phone" id="phone" style="width:100%;margin-bottom:8px">
+<input type="file" id="screenshot" accept="image/*">
+<button onclick="placeOrder()">Place Order</button>
+<button onclick="closeCart()" style="background:gray;margin-top:5px">Close</button>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const supabase1 = supabase.createClient(
+  "https://mzcfodvfhulmhffhbhpu.supabase.co",
+  "sb_publishable_6a-rZ0ntq9tBzo4tCESuYw_ZCQwaH_G",
+);
+
+let productsData=[];
+let cart=JSON.parse(localStorage.getItem("cart"))||[];
+
+async function loadProducts(){
+  `const {data} = await supabase1
+    .from("products")
+    .select("*")
+    .eq("active",true);`
+  const { data, error } = await client
+    .from("products")
+    .select("*")
+    .eq("active", true);
+
+  if (error) {
+    console.error("Fetch error:", error);
+    alert("Server waking up, please refresh in 5 seconds.");
+    return;
+  }
+
+  if (!data) return;
+
+  productsData=data;
+  const container=document.getElementById("products");
+  container.innerHTML="";
+
+  data.forEach(p=>{
+    container.innerHTML+=`
+    <div class="card">
+      <img src="${p.image}">
+      <h4>${p.name}</h4>
+      <p>₹${p.price}</p>
+      <p>Stock: ${p.stock}</p>
+      ${
+        p.stock>0
+        ? `<button onclick="addToCart('${p.id}')">Add to Cart</button>`
+        : `<p class="out">Out Of Stock</p>
+           <button onclick="notify('${p.id}')">Order when in stock</button>`
+      }
+    </div>`;
+  });
+}
+
+function addToCart(id){
+  const product=productsData.find(p=>p.id===id);
+  cart.push(product);
+  localStorage.setItem("cart",JSON.stringify(cart));
+  alert("Added to cart");
+}
+
+function openCart(){
+  document.getElementById("cartModal").style.display="flex";
+  renderCart();
+}
+
+function closeCart(){
+  document.getElementById("cartModal").style.display="none";
+}
+
+function renderCart(){
+  let total=0;
+  const container=document.getElementById("cartItems");
+  container.innerHTML="";
+
+  cart.forEach(item=>{
+    total+=item.price;
+    container.innerHTML+=`<p>${item.name} - ₹${item.price}</p>`;
+  });
+
+  let discount=total*0.05;
+  let finalAmount=total-discount;
+  let advance=finalAmount*0.2;
+
+  document.getElementById("totals").innerHTML=`
+    <p>Total: ₹${total}</p>
+    <p>Discount: -₹${discount.toFixed(2)}</p>
+    <p><b>Final: ₹${finalAmount.toFixed(2)}</b></p>
+    <p>Advance (20%): ₹${advance.toFixed(2)}</p>
+    <hr>
+    <p>UPI: 9390683808@ibl</p>
+  `;
+}
+
+async function placeOrder(){
+  const name=document.getElementById("name").value;
+  const phone=document.getElementById("phone").value;
+  const file=document.getElementById("screenshot").files[0];
+
+  if(!name||!phone||!file||cart.length===0){
+    alert("Fill all details");
+    return;
+  }
+  const cleanName = file.name
+  .replace(/\s+/g, "_")
+  .replace(/[^a-zA-Z0-9._-]/g, "");
+
+  const fileName = Date.now() + "_" + cleanName;
+  // const fileName=Date.now()+"_"+file.name;
+  await supabase1.storage
+    .from("screenshots")
+    .upload(fileName,file);
+
+  const {data:{publicUrl}} =
+    supabase1.storage
+    .from("screenshots")
+    .getPublicUrl(fileName);
+
+  let total=cart.reduce((s,i)=>s+i.price,0);
+  let discount=total*0.05;
+  let finalAmount=total-discount;
+  let advance=finalAmount*0.2;
+
+  `await supabase1.from("orders").insert([{
+    order_id:"GH"+Date.now(),
+    name,
+    phone,
+    items:cart,
+    total:finalAmount,
+    discount,
+    advance,
+    screenshot_url:publicUrl
+  }]);`
+  await supabase1.rpc("place_order", {
+    p_order_id: "GH" + Date.now(),
+    p_name: name,
+    p_phone: phone,
+    p_items: cart,
+    p_total: finalAmount,
+    p_discount: discount,
+    p_advance: advance,
+    p_screenshot_url: publicUrl
+  });
+
+  alert("Order placed!");
+  cart=[];
+  localStorage.removeItem("cart");
+  closeCart();
+}
+
+async function notify(productId){
+  const name=prompt("Enter your name");
+  const phone=prompt("Enter phone number");
+  if(!name||!phone) return;
+
+  await supabase1.from("notify_requests").insert([{
+    product_id:productId,
+    name,
+    phone
+  }]);
+
+  alert("We will notify you!");
+}
+
+loadProducts();
+</script>
+</body>
+</html>

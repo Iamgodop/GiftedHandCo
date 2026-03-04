@@ -481,11 +481,12 @@ p_screenshot_url:publicUrl
 
 if(error){
 console.error("RPC ERROR:",error);
-showToast(error.message);
+// showToast(error.message);
+showToast("❌ Order failed. Please try again.","error");
 return;
 }
-
-showToast("Order placed 🎉");
+showToast("🎉 Order placed successfully!", "success");
+// showToast("Order placed 🎉");
 
 cart=[];
 localStorage.removeItem("cart");
